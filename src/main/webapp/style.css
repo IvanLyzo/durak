@@ -1,0 +1,25 @@
+.card {
+    position: absolute;
+
+    width: 100px;
+    height: 150px;
+
+    transition: all 0.2s ease-out;
+
+    overflow: hidden;
+}
+
+.card img {
+    transform-origin: top left;
+}
+
+#desk {
+    border: 5px;
+    position:relative; 
+    width: 1000px; 
+    height: 800px;
+
+    border: 5px solid black;
+
+    background-color: green;
+}
