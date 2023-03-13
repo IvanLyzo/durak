@@ -1,4 +1,6 @@
-package app.brickhouse.durak;
+package app.brickhouse.durak.model;
+
+import app.brickhouse.durak.Game;
 
 import java.util.ArrayList;
 import java.util.List;

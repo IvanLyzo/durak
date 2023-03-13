@@ -1,11 +1,15 @@
-package app.brickhouse.durak;
+package app.brickhouse.durak.model;
 
-public class Move {
+public class Move extends Event {
     public static final String POSITION_HAND1 = "HAND1";
     public static final String POSITION_HAND2 = "HAND2";
     public static final String POSITION_FIELD = "FIELD";
     public static final String POSITION_DECK = "DECK";
     public static final String POSITION_OUT = "OUT";
+
+    public Move() {
+        setType(Event.MOVE);
+    }
 
     private String card;
     private String from;

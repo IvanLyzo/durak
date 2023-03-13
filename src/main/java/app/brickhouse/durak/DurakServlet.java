@@ -1,5 +1,6 @@
 package app.brickhouse.durak;
 
+import app.brickhouse.durak.model.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.ServletOutputStream;
@@ -13,9 +14,9 @@ import java.io.IOException;
 import java.util.*;
 
 @WebServlet("/api")
-public class CheckersServlet extends HttpServlet {
+public class DurakServlet extends HttpServlet {
 
-    private static Random random = new Random();
+    private static final Random random = new Random();
 
     public static final String[] INITIAL_DECK = new String[] {
             "S6", "S7", "S8", "S9", "S0", "SJ", "SQ", "SK", "SA",
@@ -32,57 +33,70 @@ public class CheckersServlet extends HttpServlet {
 
     @Override
     protected void service(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        String command = req.getParameter("command");
-        String startingIndex = req.getParameter("startingIndex");
-        String card = req.getParameter("card");
-        String buttonName = req.getParameter("buttonName");
 
-        Object response = null;
-        switch(command) {
-            case "enter":
-                response = enter(req, resp);
-                break;
-            case "enterGame":
-                response = enterGame(req);
-                break;
-            case "getGamePosition":
-                response = getGamePosition(req);
-                break;
-            case "getGameHistory":
-                response = getGameHistory(req, Integer.parseInt(startingIndex));
-                break;
-            case "initiateMove":
-                response = initiateMove(req, card, Integer.parseInt(startingIndex));
-                break;
-            case "initiateButton":
-                response = initiateButton(req, buttonName, Integer.parseInt(startingIndex));
-                break;
-            default:
-                throw new RuntimeException("Unrecognized command: " + command);
-        }
+        // create command
+        Command command = createCommand(req);
 
-        if (response != null) {
-            ObjectMapper mapper = new ObjectMapper();
+        // process command and get instance of Events
+        Response response = processCommand(command);
 
-            try {
-                String json = mapper.writeValueAsString(response);
-                ServletOutputStream out = resp.getOutputStream();
-                out.println(json);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
+        // send response back to client
+        sendResponse(response, resp);
+
     }
 
-    private User enter(HttpServletRequest req, HttpServletResponse resp) {
-        String name = getNameFromCookie(req);
+    private Command createCommand(HttpServletRequest req) {
+        Command command = new Command();
+        command.setUsername(getNameFromCookie(req));
 
-        if (name == null) {
-            name = generateName(resp);
+        command.setCommand(req.getParameter("command"));
+
+        String startIndexStr = req.getParameter("startIndex");
+        if (startIndexStr != null) {
+            command.setStartIndex(Integer.parseInt(startIndexStr));
         }
 
+        command.setCard(req.getParameter("card"));
+        command.setButtonName(req.getParameter("buttonName"));
+
+        return command;
+    }
+
+
+    private Response processCommand(Command command) {
+
+        Response response;
+        switch(command.getCommand()) {
+            case "enter":
+                response = enter(command);
+                break;
+            case "enterGame":
+                response = enterGame(command);
+                break;
+            case "getEvents":
+                response = getEvents(command);
+                break;
+            case "initiateMove":
+                response = initiateMove(command);
+                break;
+            case "initiateButton":
+                response = initiateButton(command);
+                break;
+            default:
+                throw new RuntimeException("Unrecognized command: " + command.getCommand());
+        }
+
+        return response;
+    }
+
+    private User enter(Command command) {
         User user = new User();
-        user.setName(name);
+
+        if (command.getUsername() == null) {
+            user.setName(generateName());
+        } else {
+            user.setName(command.getUsername());
+        }
 
         return user;
     }
@@ -101,21 +115,14 @@ public class CheckersServlet extends HttpServlet {
         return null;
     }
 
-    private String generateName(HttpServletResponse resp) {
-        String name = model.keywords[random.nextInt(model.keywords.length)] + model.nextNumber();
-
-        Cookie cookie = new Cookie("name", name);
-        resp.addCookie(cookie);
-
-        return name;
+    private String generateName() {
+        return model.keywords[random.nextInt(model.keywords.length)] + model.nextNumber();
     }
 
-
-
-    private GamePosition enterGame(HttpServletRequest req) {
+    private GamePosition enterGame(Command command) {
         System.out.println("Entering game");
         // get name of the user
-        String name = getNameFromCookie(req);
+        String name = command.getUsername();
 
         if (name == null) {
             // if it's null, cookie must have been cleared after entering
@@ -185,15 +192,21 @@ public class CheckersServlet extends HttpServlet {
     }
 
     private void startGame(Game game) {
+        GetNames getNames = new GetNames();
+        getNames.setName1(game.gamePosition.getPlayer1());
+        getNames.setName2(game.gamePosition.getPlayer2());
+        game.moves.add(getNames);
+
         for (int i = 0; i < 6; i++) {
             moveCardFromDeck("hand1", game);
         }
-
         for (int i = 0; i < 6; i++) {
             moveCardFromDeck("hand2", game);
         }
 
-        game.gamePosition.setGameState(random.nextBoolean() ? GamePosition.STATE_PLAYER1_ATTACK : GamePosition.STATE_PLAYER2_ATTACK);
+        String firstAttacker = random.nextBoolean() ? GamePosition.STATE_PLAYER1_ATTACK : GamePosition.STATE_PLAYER2_ATTACK;
+        changeGameState(game, firstAttacker);
+
         game.gamePosition.setNextMoveIndex(0);
     }
 
@@ -212,24 +225,19 @@ public class CheckersServlet extends HttpServlet {
         System.out.println("Removing card " + card + " from deck and adding to " + hand);
     }
 
-    private GamePosition getGamePosition(HttpServletRequest req) {
-        String name = getNameFromCookie(req);
-        return getGameWithName(name).gamePosition;
-    }
-
-    private GameHistory getGameHistory(HttpServletRequest req, int startingIndex) {
-        String name = getNameFromCookie(req);
+    private Events getEvents(Command command) {
+        String name = command.getUsername();
         Game game = getGameWithName(name);
 
-        GameHistory gameHistory = new GameHistory();
+        Events events = new Events();
+        events.setStartIndex(command.getStartIndex());
 
-        for (int i = startingIndex; i < game.moves.size(); i++) {
-            gameHistory.moves.add(game.moves.get(i));
+        for (int i = command.getStartIndex(); i < game.moves.size(); i++) {
+            log1("About to add new move " + game.moves.get(i) + " with start index " + i);
+            events.events.add(game.moves.get(i));
         }
 
-        gameHistory.setGameState(game.gamePosition.getGameState());
-
-        return gameHistory;
+        return events;
     }
 
     private Game getGameWithName(String name) {
@@ -252,48 +260,61 @@ public class CheckersServlet extends HttpServlet {
         return game;
     }
 
-    private GameHistory initiateMove(HttpServletRequest req, String card, int startingIndex) {
-        String name = getNameFromCookie(req);
+    private Events initiateMove(Command command) {
+        String name = command.getUsername();
         Game game = getGameWithName(name);
 
         // check game state
         if (game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER1_ATTACK) ||
-                game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER2_ATTACK)) {
+                game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER2_ATTACK) ||
+                game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER1_PICKUP) ||
+                game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER2_PICKUP)) {
 
             // detect which user makes a move
             List<String> myHand;
+            List<String> hisHand;
+
             String myHandName;
-            boolean playerOne = game.gamePosition.getPlayer1().equals(name);
+            String hisHandName;
+
+            boolean playerOne = game.gamePosition.getPlayer1().equals(command.getUsername());
             boolean attacking;
+            boolean enemyPickingUp;
+
             if (playerOne) {
                 myHand = game.gamePosition.hand1;
+                hisHand = game.gamePosition.hand2;
                 myHandName = "hand1";
+                hisHandName = "hand2";
                 attacking = game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER1_ATTACK);
+                enemyPickingUp = game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER2_PICKUP);
             } else {
                 myHand = game.gamePosition.hand2;
+                hisHand = game.gamePosition.hand1;
                 myHandName = "hand2";
+                hisHandName = "hand1";
                 attacking = game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER2_ATTACK);
+                enemyPickingUp = game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER1_PICKUP);
             }
 
             // make a move
+            String card = command.getCard();
             if (myHand.contains(card)) {
-
-                // check if this is my move
                 if (attacking) {
-
                     if (game.gamePosition.field.size() % 2 == 0) {
                         if (game.gamePosition.field.size() == 0) {
-                            makeMove(myHand, card, myHandName, game);
+                            makeMove(myHandName, myHand, "field", game.gamePosition.field, card, game);
                         } else {
                             boolean found = false;
                             for (String fieldCard : game.gamePosition.field) {
                                 // check if our card has the same nominal as fieldCard
                                 if (fieldCard.charAt(1) == card.charAt(1)) {
                                     found = true;
+                                    break;
                                 }
                             }
                             if (found) {
-                                makeMove(myHand, card, myHandName, game);
+                                makeMove(myHandName, myHand, "field", game.gamePosition.field, card, game);
                             } else {
                                 System.out.println("Can't make move with card " + card + ", there is no such nominal on the field");
                             }
@@ -301,7 +322,23 @@ public class CheckersServlet extends HttpServlet {
                     } else {
                         System.out.println("Player " + name + " is attacking but there are odd number of cards on the field");
                     }
-
+                } else if (enemyPickingUp) {
+                    if (game.gamePosition.getPickUpLeft() > 0) {
+                        boolean found = false;
+                        for (String pickUpCard : game.gamePosition.pickUp) {
+                            // check if our card has the same nominal as pickUpCard
+                            if (pickUpCard.charAt(1) == card.charAt(1)) {
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (found) {
+                            makeMove(myHandName, myHand, hisHandName, hisHand, card, game);
+                            game.gamePosition.setPickUpLeft(game.gamePosition.getPickUpLeft() - 1);
+                        } else {
+                            System.out.println("Can't make move with card " + card + ", there is no such nominal in the pickUp pile");
+                        }
+                    }
                 } else {
                     // we are defending
                     if (game.gamePosition.field.size() % 2 == 1) {
@@ -309,7 +346,7 @@ public class CheckersServlet extends HttpServlet {
                         char trumpSuit = game.gamePosition.getTrumpSuit().charAt(0);
 
                         if (card.charAt(0) == trumpSuit && attackingCard.charAt(0) != trumpSuit) {
-                            makeMove(myHand, card, myHandName, game);
+                            makeMove(myHandName, myHand, "field", game.gamePosition.field, card, game);
                         } else if (card.charAt(0) == attackingCard.charAt(0)) {
                             int attackIndex = 0;
                             int defendingIndex = 0;
@@ -329,10 +366,8 @@ public class CheckersServlet extends HttpServlet {
                                 }
                             }
 
-                            System.out.println("Attack index " + attackIndex + ", defending index " + defendingIndex);
-
                             if (attackIndex < defendingIndex) {
-                                makeMove(myHand, card, myHandName, game);
+                                makeMove(myHandName, myHand, "field", game.gamePosition.field, card, game);
                             } else {
                                 System.out.println("Nominal of defending card has to surpass that of attacking card " +
                                         "and be of suit as previous placed card");
@@ -348,23 +383,12 @@ public class CheckersServlet extends HttpServlet {
             }
         }
 
-        return getGameHistory(req, startingIndex);
+        return getEvents(command);
     }
 
-    private void makeMove(List<String> myHand, String card, String myHandName, Game game) {
-        //TODO: REUSE NEW METHOD
-        myHand.remove(card);
+    private void makeMove(String fromName, List<String> from, String toName, List<String> to, String card, Game game) {
+        System.out.println("Moving " + card + " from " + fromName + " to " + toName);
 
-        Move move = new Move();
-        move.setCard(card);
-        move.setFrom(myHandName);
-        move.setTo("field");
-
-        game.moves.add(move);
-        game.gamePosition.field.add(card);
-    }
-
-    private void makeMove2(String fromName, List<String> from, String toName, List<String> to, String card, Game game) {
         from.remove(card);
         to.add(card);
 
@@ -376,79 +400,107 @@ public class CheckersServlet extends HttpServlet {
         game.moves.add(move);
     }
 
-    private GameHistory initiateButton(HttpServletRequest req, String buttonName, int startingIndex) {
-        String name = getNameFromCookie(req);
-        Game game = getGameWithName(name);
+    private Events initiateButton(Command command) {
+        System.out.println("Command " + command + " is executing");
+
+        Game game = getGameWithName(command.getUsername());
 
         if (game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER1_ATTACK) ||
-                game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER2_ATTACK)) {
+                game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER2_ATTACK) ||
+                game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER1_PICKUP) ||
+                game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER2_PICKUP)) {
 
             // detect which user makes a move
-            // TODO: REMOVE DUPLICATE
             List<String> myHand;
             List<String> hisHand;
+
             String myHandName;
             String hisHandName;
-            boolean playerOne = game.gamePosition.getPlayer1().equals(name);
+
+            List<String> pickUp = game.gamePosition.pickUp;
+            String pickUpName = "pickUp";
+
+            boolean playerOne = game.gamePosition.getPlayer1().equals(command.getUsername());
             boolean attacking;
+            boolean enemyPickingUp;
+
             if (playerOne) {
                 myHand = game.gamePosition.hand1;
                 hisHand = game.gamePosition.hand2;
                 myHandName = "hand1";
                 hisHandName = "hand2";
                 attacking = game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER1_ATTACK);
+                enemyPickingUp = game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER2_PICKUP);
             } else {
                 myHand = game.gamePosition.hand2;
                 hisHand = game.gamePosition.hand1;
                 myHandName = "hand2";
                 hisHandName = "hand1";
                 attacking = game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER2_ATTACK);
+                enemyPickingUp = game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER1_PICKUP);
             }
 
-            if (buttonName.equals("pass")) {
-                if (attacking) {
-                    if (game.gamePosition.field.size() == 0) {
-                        System.out.println("Can't pass with no cards put down");
-                    } else if (game.gamePosition.field.size() % 2 == 1) {
-                        System.out.println("Can't pass until opponent defends");
-                    } else {
-                        List<String> newCards = new ArrayList<>(game.gamePosition.field);
-                        for (String card : newCards) {
-                            makeMove2("field", game.gamePosition.field, "out", game.gamePosition.out, card, game);
+            System.out.println("The enemy is picking up: " + enemyPickingUp);
+
+            if (command.getButtonName().equals("endTurn")) {
+                if (game.gamePosition.field.size() % 2 == 1) {
+                    System.out.println("Can't end turn until opponent defends");
+                } else {
+                    if (attacking) {
+                        if (game.gamePosition.field.size() == 0) {
+                            System.out.println("Can't end turn with no cards put down");
+                        } else {
+                            List<String> fieldCopy = new ArrayList<>(game.gamePosition.field);
+
+                            for (String card : fieldCopy) {
+                                makeMove("field", game.gamePosition.field, "out", game.gamePosition.out, card, game);
+                            }
+
+                            while (myHand.size() < 6 && game.gamePosition.deck.size() > 0) {
+                                makeMove("deck", game.gamePosition.deck, myHandName, myHand,
+                                        game.gamePosition.deck.get(game.gamePosition.deck.size() - 1), game);
+                            }
+
+                            while (hisHand.size() < 6 && game.gamePosition.deck.size() > 0) {
+                                makeMove("deck", game.gamePosition.deck, hisHandName, hisHand,
+                                        game.gamePosition.deck.get(game.gamePosition.deck.size() - 1), game);
+                            }
+
+                            changeGameState(game, game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER1_ATTACK) ?
+                                    GamePosition.STATE_PLAYER2_ATTACK : GamePosition.STATE_PLAYER1_ATTACK);
                         }
+                    } else if (enemyPickingUp) {
+                        List<String> pickUpCopy = new ArrayList<>(game.gamePosition.pickUp);
+
+                        for (String card : pickUpCopy) {
+                            makeMove("pickUp", game.gamePosition.pickUp, hisHandName, hisHand, card, game);
+                        }
+
+                        changeGameState(game, playerOne ? GamePosition.STATE_PLAYER1_ATTACK : GamePosition.STATE_PLAYER2_ATTACK);
 
                         while (myHand.size() < 6 && game.gamePosition.deck.size() > 0) {
-                            makeMove2("deck", game.gamePosition.deck, myHandName, myHand,
+                            makeMove("deck", game.gamePosition.deck, myHandName, myHand,
                                     game.gamePosition.deck.get(game.gamePosition.deck.size() - 1), game);
                         }
-
-                        while (hisHand.size() < 6 && game.gamePosition.deck.size() > 0) {
-                            makeMove2("deck", game.gamePosition.deck, hisHandName, hisHand,
-                                    game.gamePosition.deck.get(game.gamePosition.deck.size() - 1), game);
-                        }
-
-                        game.gamePosition.setGameState(game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER1_ATTACK) ?
-                                GamePosition.STATE_PLAYER2_ATTACK : GamePosition.STATE_PLAYER1_ATTACK);
                     }
-                } else {
-                    System.out.println("Can't pass on opponent's turn");
                 }
-            } else if (buttonName.equals("pick")) {
+            } else if (command.getButtonName().equals("pickUp")) {
                 if (!attacking) {
                     if (game.gamePosition.field.size() == 0) {
                         System.out.println("Can't pick up with no cards on the field");
                     } else if (game.gamePosition.field.size() % 2 == 0) {
                         System.out.println("Can't pick up defended cards");
                     } else {
-                        List<String> newCards = new ArrayList<>(game.gamePosition.field);
-                        for (String card : newCards) {
-                            makeMove2("field", game.gamePosition.field, myHandName, myHand, card, game);
+                        System.out.println("Executing pickup");
+                        List<String> cardsCopy = new ArrayList<>(game.gamePosition.field);
+
+                        changeGameState(game, playerOne ? GamePosition.STATE_PLAYER1_PICKUP : GamePosition.STATE_PLAYER2_PICKUP);
+
+                        for (String card : cardsCopy) {
+                            makeMove("field", game.gamePosition.field, pickUpName, pickUp, card, game);
                         }
 
-                        while (hisHand.size() < 6 && game.gamePosition.deck.size() > 0) {
-                            makeMove2("deck", game.gamePosition.deck, hisHandName, hisHand,
-                                    game.gamePosition.deck.get(game.gamePosition.deck.size() - 1), game);
-                        }
+                        game.gamePosition.setPickUpLeft(hisHand.size() + pickUp.size() / 2 - (pickUp.size() + 1) / 2);
                     }
                 } else {
                     System.out.println("Can't pick up on your attack turn");
@@ -456,8 +508,42 @@ public class CheckersServlet extends HttpServlet {
             }
         }
 
+        return getEvents(command);
+    }
 
+    private void changeGameState(Game game, String gameState) {
+        System.out.println("Changing game state to " + gameState);
 
-        return getGameHistory(req, startingIndex);
+        game.gamePosition.setGameState(gameState);
+
+        ChangeGameState changeState = new ChangeGameState();
+        changeState.setGameState(gameState);
+        game.moves.add(changeState);
+    }
+
+    private void sendResponse(Response response, HttpServletResponse resp) {
+        if (response != null) {
+            // send response
+            ObjectMapper mapper = new ObjectMapper();
+
+            try {
+                String json = mapper.writeValueAsString(response);
+                ServletOutputStream out = resp.getOutputStream();
+                out.println(json);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            // set cookie
+            if (response instanceof User) {
+                Cookie cookie = new Cookie("name", ((User) response).getName());
+                resp.addCookie(cookie);
+            }
+        }
+    }
+
+    private void log1(String message) {
+
+        System.out.println(new Date() + ": " + message);
     }
 }
