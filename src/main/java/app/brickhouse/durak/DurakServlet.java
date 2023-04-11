@@ -57,6 +57,7 @@ public class DurakServlet extends HttpServlet {
         }
 
         command.setCard(req.getParameter("card"));
+
         command.setButtonName(req.getParameter("buttonName"));
 
         return command;
@@ -131,29 +132,39 @@ public class DurakServlet extends HttpServlet {
 
         System.out.println("User: " + name);
         GamePosition response;
+        if (model.usersGame.get(name) == null ||
+                (model.usersGame.get(name).gamePosition.getGameState().equals(GamePosition.STATE_DRAW)) ||
+                (model.usersGame.get(name).gamePosition.getGameState().equals(GamePosition.STATE_PLAYER1_WON)) ||
+                (model.usersGame.get(name).gamePosition.getGameState().equals(GamePosition.STATE_PLAYER2_WON))) {
+            if (model.freeGame == null) {
+                model.freeGame = new Game();
 
-        if (model.freeGame == null) {
-            model.freeGame = new Game();
+                System.out.println("Created free game " + model.freeGame + " in the model " + model);
+                initGame(model.freeGame);
 
-            System.out.println("Created free game " + model.freeGame + " in the model " + model);
-            initGame(model.freeGame.gamePosition);
+                model.freeGame.gamePosition.setPlayer1(name);
+                response = model.freeGame.gamePosition;
 
-            model.freeGame.gamePosition.setPlayer1(name);
-            response = model.freeGame.gamePosition;
+                model.usersGame.put(name, model.freeGame);
+            } else {
+                System.out.println("Game exists, joining");
+                model.freeGame.gamePosition.setPlayer2(name);
+
+                model.activeGames.add(model.freeGame);
+                System.out.println("Cards in deck before copyPosition: " + model.freeGame.gamePosition.deck.size());
+                response = copyPosition(model.freeGame.gamePosition);
+
+                startGame(model.freeGame);
+
+                System.out.println("Cards in deck after copyPosition: " + model.freeGame.gamePosition.deck.size());
+
+                model.usersGame.put(name, model.freeGame);
+
+                System.out.println("About to reset free game");
+                model.freeGame = null;
+            }
         } else {
-            System.out.println("Game exists, joining");
-            model.freeGame.gamePosition.setPlayer2(name);
-
-            model.activeGames.add(model.freeGame);
-            System.out.println("Cards in deck before copyPosition: " + model.freeGame.gamePosition.deck.size());
-            response = copyPosition(model.freeGame.gamePosition);
-
-            startGame(model.freeGame);
-
-            System.out.println("Cards in deck after copyPosition: " + model.freeGame.gamePosition.deck.size());
-
-            System.out.println("About to reset free game");
-            model.freeGame = null;
+            response = model.usersGame.get(name).gamePosition;
         }
 
         System.out.println("About to return response: " + response);
@@ -179,16 +190,18 @@ public class DurakServlet extends HttpServlet {
         return positionCopy;
     }
 
-    private void initGame(GamePosition game) {
-        Collections.addAll(game.deck, INITIAL_DECK);
-        Collections.shuffle(game.deck);
+    private void initGame(Game game) {
+        Collections.addAll(game.gamePosition.deck, INITIAL_DECK);
+        Collections.shuffle(game.gamePosition.deck);
 
-        System.out.println("First card in deck: " + game.deck.get(0));
+        System.out.println("First card in deck: " + game.gamePosition.deck.get(0));
 
-        String trumpSuit = String.valueOf(game.deck.get(0).charAt(0));
-        game.setTrumpSuit(trumpSuit);
+        String trumpSuit = String.valueOf(game.gamePosition.deck.get(0).charAt(0));
+        game.gamePosition.setTrumpSuit(trumpSuit);
 
-        System.out.println("Trump suit: " + game.getTrumpSuit());
+        changeGameState(game, GamePosition.STATE_WAITING);
+
+        System.out.println("Trump suit: " + game.gamePosition.getTrumpSuit());
     }
 
     private void startGame(Game game) {
@@ -241,23 +254,7 @@ public class DurakServlet extends HttpServlet {
     }
 
     private Game getGameWithName(String name) {
-        Game game = null;
-
-        for (Game currentGame : model.activeGames) {
-            if (currentGame.gamePosition.getPlayer1().equals(name) || currentGame.gamePosition.getPlayer2().equals(name)) {
-                game = currentGame;
-            }
-        }
-
-        if (game == null) {
-            if (model.freeGame.gamePosition.getPlayer1().equals(name)) {
-                game = model.freeGame;
-            } else {
-                throw new RuntimeException("Game not found for the player with the given name: " + name);
-            }
-        }
-
-        return game;
+        return model.usersGame.get(name);
     }
 
     private Events initiateMove(Command command) {
@@ -405,40 +402,44 @@ public class DurakServlet extends HttpServlet {
 
         Game game = getGameWithName(command.getUsername());
 
-        if (game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER1_ATTACK) ||
+        // detect which user makes a move
+        List<String> myHand;
+        List<String> hisHand;
+
+        String myHandName;
+        String hisHandName;
+
+        List<String> pickUp = game.gamePosition.pickUp;
+        String pickUpName = "pickUp";
+
+        boolean playerOne = game.gamePosition.getPlayer1().equals(command.getUsername());
+        boolean attacking;
+        boolean enemyPickingUp;
+
+        if (playerOne) {
+            myHand = game.gamePosition.hand1;
+            hisHand = game.gamePosition.hand2;
+            myHandName = "hand1";
+            hisHandName = "hand2";
+            attacking = game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER1_ATTACK);
+            enemyPickingUp = game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER2_PICKUP);
+        } else {
+            myHand = game.gamePosition.hand2;
+            hisHand = game.gamePosition.hand1;
+            myHandName = "hand2";
+            hisHandName = "hand1";
+            attacking = game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER2_ATTACK);
+            enemyPickingUp = game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER1_PICKUP);
+        }
+
+        if (command.getButtonName().equals("toggleDraw")) {
+            toggleDraw(game, playerOne);
+        } else if (command.getButtonName().equals("toggleForfeit")) {
+            toggleForfeit(game, playerOne);
+        } else if (game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER1_ATTACK) ||
                 game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER2_ATTACK) ||
                 game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER1_PICKUP) ||
                 game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER2_PICKUP)) {
-
-            // detect which user makes a move
-            List<String> myHand;
-            List<String> hisHand;
-
-            String myHandName;
-            String hisHandName;
-
-            List<String> pickUp = game.gamePosition.pickUp;
-            String pickUpName = "pickUp";
-
-            boolean playerOne = game.gamePosition.getPlayer1().equals(command.getUsername());
-            boolean attacking;
-            boolean enemyPickingUp;
-
-            if (playerOne) {
-                myHand = game.gamePosition.hand1;
-                hisHand = game.gamePosition.hand2;
-                myHandName = "hand1";
-                hisHandName = "hand2";
-                attacking = game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER1_ATTACK);
-                enemyPickingUp = game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER2_PICKUP);
-            } else {
-                myHand = game.gamePosition.hand2;
-                hisHand = game.gamePosition.hand1;
-                myHandName = "hand2";
-                hisHandName = "hand1";
-                attacking = game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER2_ATTACK);
-                enemyPickingUp = game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER1_PICKUP);
-            }
 
             System.out.println("The enemy is picking up: " + enemyPickingUp);
 
@@ -456,18 +457,16 @@ public class DurakServlet extends HttpServlet {
                                 makeMove("field", game.gamePosition.field, "out", game.gamePosition.out, card, game);
                             }
 
-                            while (myHand.size() < 6 && game.gamePosition.deck.size() > 0) {
-                                makeMove("deck", game.gamePosition.deck, myHandName, myHand,
-                                        game.gamePosition.deck.get(game.gamePosition.deck.size() - 1), game);
-                            }
+                            handoutCards(game, myHand, myHandName, hisHand, hisHandName);
 
-                            while (hisHand.size() < 6 && game.gamePosition.deck.size() > 0) {
-                                makeMove("deck", game.gamePosition.deck, hisHandName, hisHand,
-                                        game.gamePosition.deck.get(game.gamePosition.deck.size() - 1), game);
+                            if (myHand.size() == 0) {
+                                changeGameState(game, playerOne ? GamePosition.STATE_PLAYER1_WON : GamePosition.STATE_PLAYER2_WON);
+                            } else if (hisHand.size() == 0) {
+                                changeGameState(game, playerOne ? GamePosition.STATE_PLAYER2_WON : GamePosition.STATE_PLAYER1_WON);
+                            } else {
+                                changeGameState(game, game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER1_ATTACK) ?
+                                        GamePosition.STATE_PLAYER2_ATTACK : GamePosition.STATE_PLAYER1_ATTACK);
                             }
-
-                            changeGameState(game, game.gamePosition.getGameState().equals(GamePosition.STATE_PLAYER1_ATTACK) ?
-                                    GamePosition.STATE_PLAYER2_ATTACK : GamePosition.STATE_PLAYER1_ATTACK);
                         }
                     } else if (enemyPickingUp) {
                         List<String> pickUpCopy = new ArrayList<>(game.gamePosition.pickUp);
@@ -511,6 +510,18 @@ public class DurakServlet extends HttpServlet {
         return getEvents(command);
     }
 
+    private void handoutCards(Game game, List<String> myHand, String myHandName, List<String> hisHand, String hisHandName) {
+        while (myHand.size() < 6 && game.gamePosition.deck.size() > 0) {
+            makeMove("deck", game.gamePosition.deck, myHandName, myHand,
+                    game.gamePosition.deck.get(game.gamePosition.deck.size() - 1), game);
+        }
+
+        while (hisHand.size() < 6 && game.gamePosition.deck.size() > 0) {
+            makeMove("deck", game.gamePosition.deck, hisHandName, hisHand,
+                    game.gamePosition.deck.get(game.gamePosition.deck.size() - 1), game);
+        }
+    }
+
     private void changeGameState(Game game, String gameState) {
         System.out.println("Changing game state to " + gameState);
 
@@ -519,6 +530,46 @@ public class DurakServlet extends HttpServlet {
         ChangeGameState changeState = new ChangeGameState();
         changeState.setGameState(gameState);
         game.moves.add(changeState);
+    }
+
+    private void toggleDraw(Game game, boolean playerOne) {
+        log1("Entered the toggleDraw, we are playerOne: " + playerOne);
+
+        if (playerOne) {
+            game.gamePosition.setPlayer1Draw(!game.gamePosition.isPlayer1Draw());
+            log1("Changed player1Draw to " + game.gamePosition.isPlayer1Draw());
+        } else {
+            game.gamePosition.setPlayer2Draw(!game.gamePosition.isPlayer2Draw());
+            log1("Changed player2Draw to " + game.gamePosition.isPlayer2Draw());
+        }
+
+        ToggleDraw toggleDraw = new ToggleDraw();
+
+        toggleDraw.setPlayer1Draw(game.gamePosition.isPlayer1Draw());
+        toggleDraw.setPlayer2Draw(game.gamePosition.isPlayer2Draw());
+
+        game.moves.add(toggleDraw);
+        log1("Changed toggleDraw of player1 to " + toggleDraw.isPlayer1Draw() + ", and toggleDraw of player2 to " + toggleDraw.isPlayer2Draw());
+
+        if (game.gamePosition.isPlayer1Draw() && game.gamePosition.isPlayer2Draw()) {
+            changeGameState(game, GamePosition.STATE_DRAW);
+        }
+    }
+
+    private void toggleForfeit(Game game, boolean playerOne) {
+        ToggleForfeit toggleForfeit = new ToggleForfeit();
+
+        if (playerOne) {
+            changeGameState(game, GamePosition.STATE_PLAYER1_WON);
+            toggleForfeit.setInitiator("player1");
+
+            log1("Game ended, player 1 forfeited");
+        } else {
+            changeGameState(game, GamePosition.STATE_PLAYER2_WON);
+            toggleForfeit.setInitiator("player2");
+
+            log1("Game ended, player 2 forfeited");
+        }
     }
 
     private void sendResponse(Response response, HttpServletResponse resp) {

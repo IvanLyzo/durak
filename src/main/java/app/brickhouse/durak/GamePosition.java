@@ -25,6 +25,9 @@ public class GamePosition extends Response {
     private String player1;
     private String player2;
 
+    private boolean player1Draw;
+    private boolean player2Draw;
+
     private int nextMoveIndex;
 
     private String trumpSuit;
@@ -60,6 +63,22 @@ public class GamePosition extends Response {
 
     public void setPlayer2(String player2) {
         this.player2 = player2;
+    }
+
+    public boolean isPlayer1Draw() {
+        return player1Draw;
+    }
+
+    public void setPlayer1Draw(boolean player1Draw) {
+        this.player1Draw = player1Draw;
+    }
+
+    public boolean isPlayer2Draw() {
+        return player2Draw;
+    }
+
+    public void setPlayer2Draw(boolean player2Draw) {
+        this.player2Draw = player2Draw;
     }
 
     public int getNextMoveIndex() {
