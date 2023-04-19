@@ -42,10 +42,8 @@ function recalculateCardPositions()
     layoutOut(width / 4 * 3, nameHeight + handHeight, width / 4, fieldHeight, out, true);
     layoutField(width / 4, nameHeight + handHeight, width / 2, fieldHeight, field, true);
 
-    layoutName(0, 0, width, nameHeight, hisUsername, "hisName");
-    layoutName(0, nameHeight + handHeight * 2 + fieldHeight, width, nameHeight, myUsername, "myName");
-
-    layoutButtons(0, nameHeight + handHeight * 2 + fieldHeight, width, nameHeight, "pickUp", "endTurn", "myName");
+    layoutPlayerUI(0, 0, width, nameHeight, hisUsername, "hisName");
+    layoutPlayerUI(0, nameHeight + handHeight * 2 + fieldHeight, width, nameHeight, myUsername, "myName");
 
     // if game state is pickUp, draw pickUp pile
     if (model.gameState == "PLAYER1_PICKUP")
@@ -144,9 +142,10 @@ function layoutHand(wx, wy, ww, wh, cards, drawFront)
     }
 }
 
-function layoutName(wx, wy, ww, wh, text, id)
+function layoutPlayerUI(wx, wy, ww, wh, text, id)
 {
-    let element = document.getElementById(id);
+    // position name
+    const element = document.getElementById(id);
 
     if (model.gameState == "WAITING" && id == "hisName")
     {
@@ -158,43 +157,38 @@ function layoutName(wx, wy, ww, wh, text, id)
     }
 
     element.style.color = "rgb(0, 0, 0)";
-    if ((myUsername == model.player1 && model.gameState == "PLAYER1_ATTACK") || (myUsername == model.player2 && model.gameState == "PLAYER2_ATTACK"))
+    if ((myUsername == model.player1 && model.gameState == "PLAYER1_ATTACK") || (myUsername == model.player2 && model.gameState == "PLAYER2_ATTACK")
+        && id == "myName")
     {
-        if (id == "myName")
-        {
-            element.style.color = "rgb(255, 0, 0)";
-            log("Element with name " + element.innerHTML + " is attacking");
-        }
+        element.style.color = "rgb(255, 0, 0)";
     }
-    else if ((hisUsername == model.player1 && model.gameState == "PLAYER1_ATTACK") || (hisUsername == model.player2 && model.gameState == "PLAYER2_ATTACK"))
+    else if ((hisUsername == model.player1 && model.gameState == "PLAYER1_ATTACK") || (hisUsername == model.player2 && model.gameState == "PLAYER2_ATTACK")
+        && id == "hisName")
     {
-        if (id == "hisName")
-        {
-            element.style.color = "rgb(255, 0, 0)";
-            log("Element with name " + element.innerHTML + " is attacking");
-        }
+        element.style.color = "rgb(255, 0, 0)";
     }
 
     let textX = wx + (ww - element.clientWidth) / 2;
     let textY = wy;
-
     element.style.transform = "translate(" + textX + "px, " + textY + "px)";
+
+    // position buttons
+    if (id == "myName")
+    {
+        const pickUpButton = document.getElementById("pickUp");
+        const endTurnButton = document.getElementById("endTurn");
+
+        const buttonX = wx + ww / 2;
+        const buttonY = textY + pickUpButton.clientHeight * 2;
+        const buttonOffset = element.clientWidth * 1.5;
+
+        log("ButtonX: " + buttonX + ", buttonY: " + buttonY);
+
+        pickUpButton.style.transform = "translate(" + (buttonX - buttonOffset - pickUpButton.clientWidth / 2) + "px, " + buttonY + "px)";
+        endTurnButton.style.transform = "translate(" + (buttonX + buttonOffset - endTurnButton.clientWidth / 2) + "px, " + buttonY + "px)";
+    }
 }
 
-function layoutButtons(wx, wy, ww, wh, buttonId1, buttonId2, nameId)
-{
-    const name = document.getElementById(nameId);
-    const buttonOffset = name.style.clientWidth / 2;
-
-    let middleX = wx / 2;
-    let middleY = wy + wh / 2;
-
-    let button1 = document.getElementById(buttonId1);
-    button1.style.transform = "translate(" + middleX - buttonOffset * 2 + "px, " + middleY + "px)";
-
-    let button2 = document.getElementById(buttonId2);
-    button2.style.transform = "translate(" + middleX + buttonOffset * 2 + "px, " + middleY + "px)";
-}
 
 function layoutDeck(wx, wy, ww, wh, cards)
 {

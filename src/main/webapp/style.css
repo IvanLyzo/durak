@@ -19,6 +19,10 @@
     z-index: 100;
 }
 
+.button {
+    position: absolute;
+}
+
 #desk {
     border: 5px;
     position: absolute;
@@ -48,6 +52,8 @@
     bottom: 0%;
     left: 0%;
     right: 0%;
+
+    text-align: center;
 }
 
 #mainMenu {
@@ -78,5 +84,4 @@
 
 * {
     font-family: 'Delicious Handrawn', cursive;
-    text-align: center;
 }
