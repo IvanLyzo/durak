@@ -157,12 +157,12 @@ function layoutPlayerUI(wx, wy, ww, wh, text, id)
     }
 
     element.style.color = "rgb(0, 0, 0)";
-    if ((myUsername == model.player1 && model.gameState == "PLAYER1_ATTACK") || (myUsername == model.player2 && model.gameState == "PLAYER2_ATTACK")
+    if (((myUsername == model.player1 && model.gameState == "PLAYER1_ATTACK") || (myUsername == model.player2 && model.gameState == "PLAYER2_ATTACK"))
         && id == "myName")
     {
         element.style.color = "rgb(255, 0, 0)";
     }
-    else if ((hisUsername == model.player1 && model.gameState == "PLAYER1_ATTACK") || (hisUsername == model.player2 && model.gameState == "PLAYER2_ATTACK")
+    else if (((hisUsername == model.player1 && model.gameState == "PLAYER1_ATTACK") || (hisUsername == model.player2 && model.gameState == "PLAYER2_ATTACK"))
         && id == "hisName")
     {
         element.style.color = "rgb(255, 0, 0)";
@@ -177,15 +177,29 @@ function layoutPlayerUI(wx, wy, ww, wh, text, id)
     {
         const pickUpButton = document.getElementById("pickUp");
         const endTurnButton = document.getElementById("endTurn");
+        const toggleDrawButton = document.getElementById("toggleDraw");
+        const toggleForfeitButton = document.getElementById("toggleForfeit");
 
-        const buttonX = wx + ww / 2;
-        const buttonY = textY + pickUpButton.clientHeight * 2;
-        const buttonOffset = element.clientWidth * 1.5;
+        // position pickUp and endTurn buttons
+        {
+            const buttonX = wx + ww / 2;
+            const buttonY = textY + pickUpButton.clientHeight * 2;
+            const buttonOffset = element.clientWidth * 1.5;
 
-        log("ButtonX: " + buttonX + ", buttonY: " + buttonY);
+            pickUpButton.style.transform = "translate(" + (buttonX - buttonOffset - pickUpButton.clientWidth / 2) + "px, " + buttonY + "px)";
+            endTurnButton.style.transform = "translate(" + (buttonX + buttonOffset - endTurnButton.clientWidth / 2) + "px, " + buttonY + "px)";
 
-        pickUpButton.style.transform = "translate(" + (buttonX - buttonOffset - pickUpButton.clientWidth / 2) + "px, " + buttonY + "px)";
-        endTurnButton.style.transform = "translate(" + (buttonX + buttonOffset - endTurnButton.clientWidth / 2) + "px, " + buttonY + "px)";
+        }
+
+        // position toggleDraw and toggleForfeit buttons
+        {
+            const buttonOffset = toggleDrawButton.clientHeight * 1.5;
+            const buttonX = buttonOffset;
+            const buttonY = model.deskElement.clientHeight - toggleDrawButton.clientHeight;
+
+            toggleDrawButton.style.transform = "translate(" + buttonX + "px," + (buttonY - buttonOffset) + "px)";
+            toggleForfeitButton.style.transform = "translate(" + buttonX + "px," + (buttonY - buttonOffset * 2) + "px)";
+        }
     }
 }
 
@@ -536,9 +550,19 @@ function getName()
         {
             const title = document.getElementById("title");
 
-            title.innerHTML = data.name;
-
             myUsername = data.name;
+
+            if (data.newUser == true)
+            {
+                title.innerHTML = "Greetings, " + data.name + "!";
+            }
+            else
+            {
+                title.innerHTML = "Welcome back, " + data.name + "!";
+            }
+
+
+
         });
 }
 

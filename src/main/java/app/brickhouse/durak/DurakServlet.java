@@ -95,8 +95,10 @@ public class DurakServlet extends HttpServlet {
 
         if (command.getUsername() == null) {
             user.setName(generateName());
+            user.setNewUser(true);
         } else {
             user.setName(command.getUsername());
+            user.setNewUser(false);
         }
 
         return user;

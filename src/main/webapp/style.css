@@ -10,6 +10,17 @@
     overflow: hidden;
 }
 
+.fakecard {
+    position: relative;
+    border-radius: 10px;
+
+    width: 10%;
+
+    transition: all 0.3s ease-out;
+
+    overflow: hidden;
+}
+
 .card img {
     transform-origin: top left;
 }
@@ -46,40 +57,29 @@
 }
 
 #login {
-    background-color: #191919;
+    background-color: green;
 
+    position: absolute;
     top: 0%;
     bottom: 0%;
     left: 0%;
     right: 0%;
-
-    text-align: center;
 }
 
 #mainMenu {
     color: #FFFFFF;
     position: absolute;
     background-color: #252525;
+    z-index: 100;
 
-    top: 20%;
-    bottom: 50%;
+    top: 30%;
+    bottom: 30%;
     left: 30%;
     right: 30%;
 
     border-radius: 30px;
-}
 
-#credits {
-    color: #FFFFFF;
-    position: absolute;
-    background-color: #252525;
-
-    top: 60%;
-    bottom: 20%;
-    left: 30%;
-    right: 30%;
-
-    border-radius: 30px;
+    text-align: center;
 }
 
 * {

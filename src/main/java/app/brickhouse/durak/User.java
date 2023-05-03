@@ -10,11 +10,21 @@ public class User extends Response {
 
     private String name;
 
+    private boolean newUser;
+
     public String getName() {
         return name;
     }
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public boolean isNewUser() {
+        return newUser;
+    }
+
+    public void setNewUser(boolean newUser) {
+        this.newUser = newUser;
     }
 }
