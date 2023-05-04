@@ -501,11 +501,11 @@ function finishGame(gameState)
     }
     else if (gameState == "PLAYER1_WON")
     {
-        panelMessage.innerHTML = "Player 1 won the game";
+        panelMessage.innerHTML = model.player1 + " won the game!";
     }
     else if (gameState == "PLAYER2_WON")
     {
-        panelMessage.innerHTML = "Player 2 won the game";
+        panelMessage.innerHTML = model.player2 + " won the game!";
     }
 
     document.getElementById("endgamePanel").style.display = "block";

@@ -569,12 +569,12 @@ public class DurakServlet extends HttpServlet {
         ToggleForfeit toggleForfeit = new ToggleForfeit();
 
         if (playerOne) {
-            changeGameState(game, GamePosition.STATE_PLAYER1_WON);
+            changeGameState(game, GamePosition.STATE_PLAYER2_WON);
             toggleForfeit.setInitiator("player1");
 
             log1("Game ended, player 1 forfeited");
         } else {
-            changeGameState(game, GamePosition.STATE_PLAYER2_WON);
+            changeGameState(game, GamePosition.STATE_PLAYER1_WON);
             toggleForfeit.setInitiator("player2");
 
             log1("Game ended, player 2 forfeited");
