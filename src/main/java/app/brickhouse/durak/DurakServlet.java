@@ -461,7 +461,9 @@ public class DurakServlet extends HttpServlet {
 
                             handoutCards(game, myHand, myHandName, hisHand, hisHandName);
 
-                            if (myHand.size() == 0) {
+                            if (myHand.size() == 0 && hisHand.size() == 0) {
+                                changeGameState(game, GamePosition.STATE_DRAW);
+                            } else if (myHand.size() == 0) {
                                 changeGameState(game, playerOne ? GamePosition.STATE_PLAYER1_WON : GamePosition.STATE_PLAYER2_WON);
                             } else if (hisHand.size() == 0) {
                                 changeGameState(game, playerOne ? GamePosition.STATE_PLAYER2_WON : GamePosition.STATE_PLAYER1_WON);
@@ -477,11 +479,16 @@ public class DurakServlet extends HttpServlet {
                             makeMove("pickUp", game.gamePosition.pickUp, hisHandName, hisHand, card, game);
                         }
 
-                        changeGameState(game, playerOne ? GamePosition.STATE_PLAYER1_ATTACK : GamePosition.STATE_PLAYER2_ATTACK);
+                        handoutCards(game, myHand, myHandName, hisHand, hisHandName);
 
-                        while (myHand.size() < 6 && game.gamePosition.deck.size() > 0) {
-                            makeMove("deck", game.gamePosition.deck, myHandName, myHand,
-                                    game.gamePosition.deck.get(game.gamePosition.deck.size() - 1), game);
+                        if (myHand.size() == 0 && hisHand.size() == 0) {
+                            changeGameState(game, GamePosition.STATE_DRAW);
+                        } else if (myHand.size() == 0) {
+                            changeGameState(game, playerOne ? GamePosition.STATE_PLAYER1_WON : GamePosition.STATE_PLAYER2_WON);
+                        } else if (hisHand.size() == 0) {
+                            changeGameState(game, playerOne ? GamePosition.STATE_PLAYER2_WON : GamePosition.STATE_PLAYER1_WON);
+                        } else {
+                            changeGameState(game, playerOne ? GamePosition.STATE_PLAYER1_ATTACK : GamePosition.STATE_PLAYER2_ATTACK);
                         }
                     }
                 }
